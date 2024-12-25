@@ -24,7 +24,7 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
         _senderCreator = SenderCreator(createdObj);
     }
 
-    function senderCreator() internal view virtual override returns (SenderCreator) {
+    function senderCreator() public view virtual override(EntryPoint, IEntryPoint) returns (ISenderCreator) {
         // return the same senderCreator as real EntryPoint.
         // this call is slightly (100) more expensive than EntryPoint's access to immutable member
         return _senderCreator;
@@ -35,7 +35,7 @@ contract EntryPointSimulations is EntryPoint, IEntryPointSimulations {
      * it as entrypoint, since the simulation functions don't check the signatures
      */
     constructor() {
-        require(block.number < 100, "should not be deployed");
+        require(block.number < 1000, "should not be deployed");
     }
 
     /// @inheritdoc IEntryPointSimulations

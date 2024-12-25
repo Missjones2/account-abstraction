@@ -33,9 +33,6 @@ jobs:
 
   gas-checks:
     runs-on: ubuntu-latest
-    services:
-      localgeth:
-        image: dtr22/geth-dev
 
     steps:
       - uses: actions/setup-node@v1
@@ -80,7 +77,7 @@ jobs:
       - run: yarn compile
 
       - run: FORCE_COLOR=1 yarn coverage
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: solidity-coverage
           path: |

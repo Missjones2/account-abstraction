@@ -13,6 +13,7 @@ import "./PackedUserOperation.sol";
 import "./IStakeManager.sol";
 import "./IAggregator.sol";
 import "./INonceManager.sol";
+import "./ISenderCreator.sol";
 
 interface IEntryPoint is IStakeManager, INonceManager {
     /***
@@ -220,4 +221,9 @@ interface IEntryPoint is IStakeManager, INonceManager {
      * @param data data to pass to target in a delegatecall
      */
     function delegateAndRevert(address target, bytes calldata data) external;
+
+    /**
+     * @notice Retrieves the immutable SenderCreator contract which is responsible for deployment of sender contracts.
+     */
+    function senderCreator() external view returns (ISenderCreator);
 }

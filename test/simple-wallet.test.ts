@@ -1,8 +1,11 @@
 import { Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { expect } from 'chai'
+import { toHex } from 'hardhat/internal/util/bigint'
+
 import {
   ERC1967Proxy__factory,
+  EntryPoint,
   SimpleAccount,
   SimpleAccountFactory__factory,
   SimpleAccount__factory,
@@ -12,27 +15,29 @@ import {
   TestUtil__factory
 } from '../typechain'
 import {
-  createAccount,
-  createAddress,
-  createAccountOwner,
-  getBalance,
-  isDeployed,
+  HashZero,
   ONE_ETH,
-  HashZero, deployEntryPoint
+  createAccount,
+  createAccountOwner,
+  createAddress,
+  deployEntryPoint,
+  getBalance,
+  isDeployed
 } from './testutils'
 import { fillUserOpDefaults, getUserOpHash, encodeUserOp, signUserOp, packUserOp } from './UserOp'
 import { parseEther } from 'ethers/lib/utils'
 import { UserOperation } from './UserOperation'
+import { JsonRpcProvider } from '@ethersproject/providers'
 
 describe('SimpleAccount', function () {
-  let entryPoint: string
+  let entryPoint: EntryPoint
   let accounts: string[]
   let testUtil: TestUtil
   let accountOwner: Wallet
   const ethersSigner = ethers.provider.getSigner()
 
   before(async function () {
-    entryPoint = await deployEntryPoint().then(e => e.address)
+    entryPoint = await deployEntryPoint()
     accounts = await ethers.provider.listAccounts()
     // ignore in geth.. this is just a sanity test. should be refactored to use a single-account mode..
     if (accounts.length < 2) this.skip()
@@ -41,12 +46,12 @@ describe('SimpleAccount', function () {
   })
 
   it('owner should be able to call transfer', async () => {
-    const { proxy: account } = await createAccount(ethers.provider.getSigner(), accounts[0], entryPoint)
+    const { proxy: account } = await createAccount(ethers.provider.getSigner(), accounts[0], entryPoint.address)
     await ethersSigner.sendTransaction({ from: accounts[0], to: account.address, value: parseEther('2') })
     await account.execute(accounts[2], ONE_ETH, '0x')
   })
   it('other account should not be able to call transfer', async () => {
-    const { proxy: account } = await createAccount(ethers.provider.getSigner(), accounts[0], entryPoint)
+    const { proxy: account } = await createAccount(ethers.provider.getSigner(), accounts[0], entryPoint.address)
     await expect(account.connect(ethers.provider.getSigner(1)).execute(accounts[2], ONE_ETH, '0x'))
       .to.be.revertedWith('account: not Owner or EntryPoint')
   })
@@ -62,7 +67,7 @@ describe('SimpleAccount', function () {
     let account: SimpleAccount
     let counter: TestCounter
     before(async () => {
-      ({ proxy: account } = await createAccount(ethersSigner, await ethersSigner.getAddress(), entryPoint))
+      ({ proxy: account } = await createAccount(ethersSigner, await ethersSigner.getAddress(), entryPoint.address))
       counter = await new TestCounter__factory(ethersSigner).deploy()
     })
 
@@ -155,9 +160,18 @@ describe('SimpleAccount', function () {
   })
 
   context('SimpleAccountFactory', () => {
-    it('sanity: check deployer', async () => {
+    it('should reject calls coming from any address that is not SenderCreator', async () => {
       const ownerAddr = createAddress()
-      const deployer = await new SimpleAccountFactory__factory(ethersSigner).deploy(entryPoint)
+      let deployer = await new SimpleAccountFactory__factory(ethersSigner).deploy(entryPoint.address)
+      await expect(deployer.createAccount(ownerAddr, 1234))
+        .to.be.revertedWith('only callable from SenderCreator')
+
+      // switch deployer contract to an impersonating signer
+      const senderCreator = await entryPoint.senderCreator()
+      await (ethersSigner.provider as JsonRpcProvider).send('hardhat_setBalance', [senderCreator, toHex(100e18)])
+      const senderCreatorSigner = await ethers.getImpersonatedSigner(senderCreator)
+      deployer = deployer.connect(senderCreatorSigner)
+
       const target = await deployer.callStatic.createAccount(ownerAddr, 1234)
       expect(await isDeployed(target)).to.eq(false)
       await deployer.createAccount(ownerAddr, 1234)

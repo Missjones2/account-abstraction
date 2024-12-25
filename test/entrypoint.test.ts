@@ -2,10 +2,18 @@ import './aa.init'
 import { BigNumber, Event, Wallet } from 'ethers'
 import { expect } from 'chai'
 import {
+  EntryPoint,
+  IEntryPoint__factory,
+  INonceManager__factory,
+  IStakeManager__factory,
+  MaliciousAccount__factory,
+  SenderCreator__factory,
   SimpleAccount,
   SimpleAccountFactory,
-  TestAggregatedAccount__factory,
+  SimpleAccountFactory__factory,
+  TestAggregatedAccount,
   TestAggregatedAccountFactory__factory,
+  TestAggregatedAccount__factory,
   TestCounter,
   TestCounter__factory,
   TestExpirePaymaster,
@@ -14,20 +22,13 @@ import {
   TestExpiryAccount__factory,
   TestPaymasterAcceptAll,
   TestPaymasterAcceptAll__factory,
+  TestPaymasterRevertCustomError__factory,
+  TestPaymasterWithPostOp,
+  TestPaymasterWithPostOp__factory,
   TestRevertAccount__factory,
-  TestAggregatedAccount,
   TestSignatureAggregator,
   TestSignatureAggregator__factory,
-  MaliciousAccount__factory,
-  TestWarmColdAccount__factory,
-  TestPaymasterRevertCustomError__factory,
-  IEntryPoint__factory,
-  SimpleAccountFactory__factory,
-  IStakeManager__factory,
-  INonceManager__factory,
-  EntryPoint,
-  TestPaymasterWithPostOp__factory,
-  TestPaymasterWithPostOp
+  TestWarmColdAccount__factory
 } from '../typechain'
 import {
   AddressZero,
@@ -833,6 +834,14 @@ describe('EntryPoint', function () {
     describe('create account', () => {
       let createOp: PackedUserOperation
       const beneficiaryAddress = createAddress() // 1
+
+      it('should reject create if SenderCreator not called from EntryPoint', async () => {
+        const senderCreatorAddress = await entryPoint.senderCreator()
+        const senderCreator = SenderCreator__factory.connect(senderCreatorAddress, ethersSigner)
+        await expect(
+          senderCreator.createSender('0xdeadbeef', { gasLimit: 1000000 })
+        ).to.be.revertedWith('AA97 should call from EntryPoint')
+      })
 
       it('should reject create if sender address is wrong', async () => {
         const op = await fillSignAndPack({
